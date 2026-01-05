@@ -12,6 +12,12 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
 - **Docker** and **Docker Compose** must be installed on your Linux machine.
 - **curl** (usually pre-installed).
 
+## Architecture
+- Editable diagram: [docs/architecture.drawio](file:///c:/Users/LENOVO/Downloads/prometheus-log-audit/docs/architecture.drawio)
+- Image preview:
+
+![Architecture Diagram](docs/architecture.png)
+
 ## Setup & Run
 
 1.  **Start the Environment:**
@@ -166,8 +172,3 @@ Restart Alertmanager after changes.
 - Metrics endpoint: http://localhost:3000/metrics
 - Baseline/tuned rules: [alerts.yml](prometheus-log-audit/prometheus/alerts.yml), [alerts_tuned.yml](prometheus-log-audit/prometheus/alerts_tuned.yml)
 
-## Architecture
-- Editable diagram: [docs/architecture.drawio](file:///c:/Users/LENOVO/Downloads/prometheus-log-audit/docs/architecture.drawio)
-- Image preview:
-
-![Architecture Diagram](docs/architecture.png)
