@@ -1,0 +1,90 @@
+<mxfile host="app.diagrams.net" modified="2026-01-05T10:00:00Z" agent="TraeIDE" version="20.6.3" type="device">
+  <diagram id="prom-log-audit-arch" name="Architecture">
+    <mxGraphModel dx="1024" dy="768" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1920" pageHeight="1080" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        <mxCell id="layer" parent="0" visible="1" layer="1"/>
+
+        <!-- Load Generator -->
+        <mxCell id="lg" value="Load Generator&#10;(scripts/generate_load.sh / generate_spikes.sh)" style="shape=ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="260" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Webapp -->
+        <mxCell id="webapp" value="Webapp&#10;(Node/Express, prom-client)&#10;:3000 /metrics" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="80" y="140" width="240" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Prometheus -->
+        <mxCell id="prom" value="Prometheus&#10;:9090" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="380" y="140" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Alertmanager -->
+        <mxCell id="am" value="Alertmanager&#10;:9093" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="640" y="140" width="220" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Node Exporter -->
+        <mxCell id="nodeexp" value="Node Exporter&#10;:9100" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="380" y="40" width="220" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Postgres Exporter -->
+        <mxCell id="pgexp" value="Postgres Exporter&#10;:9187" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="380" y="260" width="220" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Redis Exporter -->
+        <mxCell id="redisexp" value="Redis Exporter&#10;:9121" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="380" y="350" width="220" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Postgres DB -->
+        <mxCell id="pgdb" value="Postgres DB&#10;:5432" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#cdeb8b;strokeColor=#99cc00;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="640" y="260" width="200" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Redis -->
+        <mxCell id="redis" value="Redis&#10;:6379" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#cdeb8b;strokeColor=#99cc00;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="640" y="350" width="200" height="70" as="geometry"/>
+        </mxCell>
+
+        <!-- Receivers -->
+        <mxCell id="receivers" value="Receivers&#10;Slack / PagerDuty&#10;(webhook placeholder)" style="shape=rectangle;whiteSpace=wrap;html=1;rounded=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=12" vertex="1" parent="1">
+          <mxGeometry x="880" y="140" width="240" height="90" as="geometry"/>
+        </mxCell>
+
+        <!-- Edges -->
+        <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#6c8ebf" edge="1" parent="1" source="lg" target="webapp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#d6b656" edge="1" parent="1" source="prom" target="webapp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#d6b656" edge="1" parent="1" source="prom" target="nodeexp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#d6b656" edge="1" parent="1" source="prom" target="pgexp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#d6b656" edge="1" parent="1" source="prom" target="redisexp">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#9673a6" edge="1" parent="1" source="pgexp" target="pgdb">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#9673a6" edge="1" parent="1" source="redisexp" target="redis">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#b85450" edge="1" parent="1" source="prom" target="am">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" style="edgeStyle=orthogonalEdgeStyle;rounded=0;jettySize=auto;html=1;strokeColor=#d79b00" edge="1" parent="1" source="am" target="receivers">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

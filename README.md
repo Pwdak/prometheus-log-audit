@@ -165,3 +165,9 @@ Restart Alertmanager after changes.
 - Alertmanager UI: http://localhost:9093
 - Metrics endpoint: http://localhost:3000/metrics
 - Baseline/tuned rules: [alerts.yml](prometheus-log-audit/prometheus/alerts.yml), [alerts_tuned.yml](prometheus-log-audit/prometheus/alerts_tuned.yml)
+
+## Architecture
+- Editable diagram: [docs/architecture.drawio](file:///c:/Users/LENOVO/Downloads/prometheus-log-audit/docs/architecture.drawio)
+- Image preview:
+
+![Architecture Diagram](docs/architecture.png)
