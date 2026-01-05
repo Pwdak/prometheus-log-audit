@@ -1,0 +1,133 @@
+groups:
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # NOISY: Triggers on normal memory spikes
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 60
+        for: 2m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}%"
+
+      # NOISY: CPU spikes are normal during batch jobs
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 50
+        for: 3m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}%"
+
+      # NOISY: Disk is managed, threshold too low
+      - alert: DiskSpaceWarning
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 40
+        for: 5m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Only {{ $value }}% disk space remaining"
+
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # NOISY: Normal variations trigger this
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 0.5
+        for: 2m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      # NOISY: Triggers during cache refresh
+      - alert: LowCacheHitRate
+        expr: cache_hit_rate < 70
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value }}%"
+
+      # NOISY: Normal connection pool behavior
+      - alert: HighDatabaseConnections
+        expr: db_connections_active > 15
+        for: 3m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "High number of database connections"
+          description: "{{ $value }} active connections"
+
+      # NOISY: Memory usage varies naturally
+      - alert: ApplicationMemoryHigh
+        expr: app_memory_usage_bytes > 100000000
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Application memory usage high"
+          description: "Memory usage: {{ $value }} bytes"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # NOISY: Triggers on temporary connection issues
+      - alert: PostgresConnectionErrors
+        expr: rate(pg_stat_database_xact_rollback[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "PostgreSQL connection errors detected"
+          description: "Rollback rate: {{ $value }}"
+
+      # NOISY: Normal during backups
+      - alert: PostgresSlowQueries
+        expr: rate(pg_stat_statements_mean_exec_time[5m]) > 100
+        for: 3m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "Slow queries detected"
+          description: "Average query time: {{ $value }}ms"
+
+  - name: redis_alerts
+    interval: 30s
+    rules:
+      # NOISY: Redis memory naturally grows
+      - alert: RedisMemoryHigh
+        expr: redis_memory_used_bytes / redis_memory_max_bytes * 100 > 60
+        for: 5m
+        labels:
+          severity: warning
+          team: cache
+        annotations:
+          summary: "Redis memory usage high"
+          description: "Memory usage: {{ $value }}%"
+
+      # ACTIONABLE: Real issue
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance {{ $labels.instance }} is down"

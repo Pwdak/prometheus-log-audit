@@ -1,0 +1,121 @@
+groups:
+  - name: system_alerts
+    interval: 30s
+    rules:
+      # TUNED: Increased threshold to 85% and duration to 15m
+      - alert: HighMemoryUsage
+        expr: (node_memory_MemTotal_bytes - node_memory_MemAvailable_bytes) / node_memory_MemTotal_bytes * 100 > 85
+        for: 15m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is {{ $value }}%"
+
+      # TUNED: Increased threshold to 85% and duration to 15m
+      - alert: HighCPUUsage
+        expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 15m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is {{ $value }}%"
+
+      # TUNED: Lowered threshold to 10%
+      - alert: DiskSpaceWarning
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 15m
+        labels:
+          severity: warning
+          team: infrastructure
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Only {{ $value }}% disk space remaining"
+
+  - name: application_alerts
+    interval: 30s
+    rules:
+      # TUNED: Excluded /slow route
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{route!="/slow"}[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s"
+
+      # TUNED: Disabled LowCacheHitRate (Commented out)
+      # - alert: LowCacheHitRate
+      #   expr: cache_hit_rate < 70
+      #   for: 5m
+      #   ...
+
+      # TUNED: Increased to 45 connections
+      - alert: HighDatabaseConnections
+        expr: db_connections_active > 45
+        for: 5m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "High number of database connections"
+          description: "{{ $value }} active connections"
+
+      # TUNED: Increased to 400MB
+      - alert: ApplicationMemoryHigh
+        expr: app_memory_usage_bytes > 400000000
+        for: 5m
+        labels:
+          severity: warning
+          team: backend
+        annotations:
+          summary: "Application memory usage high"
+          description: "Memory usage: {{ $value }} bytes"
+
+  - name: database_alerts
+    interval: 30s
+    rules:
+      # TUNED: Increased tolerance
+      - alert: PostgresConnectionErrors
+        expr: rate(pg_stat_database_xact_rollback[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "PostgreSQL connection errors detected"
+          description: "Rollback rate: {{ $value }}"
+
+      # TUNED: Increased to 500ms
+      - alert: PostgresSlowQueries
+        expr: rate(pg_stat_statements_mean_exec_time[5m]) > 500
+        for: 5m
+        labels:
+          severity: warning
+          team: database
+        annotations:
+          summary: "Slow queries detected"
+          description: "Average query time: {{ $value }}ms"
+
+  - name: redis_alerts
+    interval: 30s
+    rules:
+      # TUNED: Disabled memory check for Redis (it's LRU)
+      # - alert: RedisMemoryHigh
+      #   ...
+
+      # ACTIONABLE: Real issue (Kept as is)
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          team: cache
+        annotations:
+          summary: "Redis is down"
+          description: "Redis instance {{ $labels.instance }} is down"
