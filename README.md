@@ -48,7 +48,14 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
 
 ## Workflow
 
-1.  **Analyze Noise (Baseline):**
+1.  **Logs → Analysis → Findings → Tuning → Report**
+    - Logs: collect and query alert history from Prometheus TSDB
+    - Analysis: run PromQL to quantify firing frequency and durations
+    - Findings: identify Top 10 noisy alerts (no action required)
+    - Tuning: adjust thresholds, durations, exclusions, and routing
+    - Report: document changes, impact, and next steps
+
+2.  **Analyze Noise (Baseline):**
     Go to Prometheus -> Graph and run:
     ```promql
     count by (alertname) (ALERTS{alertstate="firing"})
@@ -63,7 +70,7 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     ```
     This surfaces high-volume, low-value alerts (e.g., `HighResponseTime` including known slow routes, `RedisMemoryHigh` on LRU caches).
 
-2.  **Export Data:**
+3.  **Export Data:**
     Run the export script to save current alert snapshot:
     ```bash
     ./scripts/export_alerts.sh
@@ -74,10 +81,31 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     curl -s "http://<prometheus-host>:9090/api/v1/alerts"
     ```
 
-3.  **Tune Alerts:**
+4.  **Data-driven Historical Audit (90d)**
+    Use PromQL with the HTTP API to compute Top 10 over historical logs:
+    ```bash
+    curl -s "http://<prometheus-host>:9090/api/v1/query?query=topk(10,%20sum%20by%20(alertname)%20(count_over_time(ALERTS%7Balertstate%3D%22firing%22%7D[90d])))" > audit_top10_90d.json
+    ```
+    If retention < 90d, adapt the window (e.g., 30d):
+    ```bash
+    curl -s "http://<prometheus-host>:9090/api/v1/query?query=topk(10,%20sum%20by%20(alertname)%20(count_over_time(ALERTS%7Balertstate%3D%22firing%22%7D[30d])))" > audit_top10_30d.json
+    ```
+    Optional: group by team
+    ```bash
+    curl -s "http://<prometheus-host>:9090/api/v1/query?query=topk(10,%20sum%20by%20(alertname,%20team)%20(count_over_time(ALERTS%7Balertstate%3D%22firing%22%7D[90d])))" > audit_top10_team_90d.json
+    ```
+    These outputs provide a data-driven ranking of noisy alerts to target for tuning.
+    Script helper:
+    ```bash
+    chmod +x scripts/audit_historical.sh
+    ./scripts/audit_historical.sh <prometheus-host:9090> 30d
+    ```
+    Extrapolation tip when simulating short windows: measure over N hours and scale by (30*24)/N to approximate monthly volumes.
+
+5.  **Tune Alerts:**
     Use `prometheus/alerts_tuned.yml` as a reference for professional tuning:
     - Exclude known slow endpoints from latency SLO (e.g., `/slow`) to avoid expected noise.
-    - Increase thresholds and `for:` durations on CPU/Mem to ignore transient spikes.
+    - Increase thresholds and `for:` durations on CPU/Mem to ignore transient spikes. For CPU, set `> 85` with `for: 5m`.
     - Raise pool-based limits (DB connections) according to realistic capacity.
     - Disable purely informative alerts (e.g., Redis memory fullness under LRU).
     - Keep actionable signals (e.g., `RedisDown`) intact.
@@ -171,4 +199,3 @@ Restart Alertmanager after changes.
 - Alertmanager UI: http://localhost:9093
 - Metrics endpoint: http://localhost:3000/metrics
 - Baseline/tuned rules: [alerts.yml](prometheus-log-audit/prometheus/alerts.yml), [alerts_tuned.yml](prometheus-log-audit/prometheus/alerts_tuned.yml)
-

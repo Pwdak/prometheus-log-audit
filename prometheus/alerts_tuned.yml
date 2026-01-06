@@ -13,10 +13,10 @@ groups:
           summary: "High memory usage on {{ $labels.instance }}"
           description: "Memory usage is {{ $value }}%"
 
-      # TUNED: Increased threshold to 85% and duration to 15m
+      # TUNED: Increased threshold to 85% and duration to 5m
       - alert: HighCPUUsage
         expr: 100 - (avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
-        for: 15m
+        for: 5m
         labels:
           severity: warning
           team: infrastructure
