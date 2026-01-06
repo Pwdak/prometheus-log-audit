@@ -13,7 +13,7 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
 - **curl** (usually pre-installed).
 
 ## Architecture
-- Editable diagram: [docs/architecture.drawio](file:///c:/Users/LENOVO/Downloads/prometheus-log-audit/docs/architecture.drawio)
+- Editable diagram: [docs/architecture.drawio](prometheus-log-audit/docs/architecture.drawio)
 - Image preview:
 
 ![Architecture Diagram](docs/architecture.png)
