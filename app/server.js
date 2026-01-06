@@ -1,8 +1,16 @@
 const express = require('express');
 const client = require('prom-client');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const register = new client.Registry();
+const logFile = '/logs/app.log';
+fs.mkdirSync(path.dirname(logFile), { recursive: true });
+function log(level, msg, extra = {}) {
+  const line = JSON.stringify({ ts: new Date().toISOString(), level, msg, ...extra }) + '\n';
+  fs.appendFile(logFile, line, () => {});
+}
 
 // Create metrics
 const httpRequestDuration = new client.Histogram({
@@ -72,6 +80,8 @@ app.use((req, res, next) => {
       route: req.path, 
       status_code: res.statusCode 
     });
+    const level = duration > 1 ? 'WARN' : 'INFO';
+    log(level, 'http_request', { method: req.method, route: req.path, status_code: res.statusCode, duration });
   });
   next();
 });
@@ -79,6 +89,7 @@ app.use((req, res, next) => {
 // Routes
 app.get('/', (req, res) => {
   res.json({ message: 'Hello from monitored app!' });
+  log('INFO', 'root_accessed');
 });
 
 app.get('/slow', async (req, res) => {
@@ -86,6 +97,7 @@ app.get('/slow', async (req, res) => {
   const delay = Math.random() * 2000;
   await new Promise(resolve => setTimeout(resolve, delay));
   res.json({ message: 'Slow response', delay });
+  log('WARN', 'slow_endpoint', { delay });
 });
 
 app.get('/db', async (req, res) => {
@@ -96,6 +108,7 @@ app.get('/db', async (req, res) => {
     time: new Date().toISOString(),
     simulated: true 
   });
+  log('INFO', 'db_query', { delay });
 });
 
 app.get('/cache', async (req, res) => {
@@ -106,15 +119,18 @@ app.get('/cache', async (req, res) => {
     cached: 'test-value',
     simulated: true 
   });
+  log('DEBUG', 'cache_hit', { delay });
 });
 
 // Metrics endpoint
 app.get('/metrics', async (req, res) => {
   res.set('Content-Type', register.contentType);
   res.end(await register.metrics());
+  log('INFO', 'metrics_scraped');
 });
 
 const PORT = 3000;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`App running on port ${PORT}`);
+  log('INFO', 'app_started', { port: PORT });
 });
