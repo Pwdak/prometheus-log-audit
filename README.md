@@ -101,6 +101,11 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     ./scripts/audit_historical.sh <prometheus-host:9090> 30d
     ```
     Extrapolation tip when simulating short windows: measure over N hours and scale by (30*24)/N to approximate monthly volumes.
+    CSV export and monthly estimate:
+    ```bash
+    ./scripts/audit_historical.sh <prometheus-host:9090> 6h 30
+    ```
+    This produces JSON and CSV files with a monthly_estimate based on the window length.
 
 5.  **Tune Alerts:**
     Use `prometheus/alerts_tuned.yml` as a reference for professional tuning:
