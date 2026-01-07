@@ -32,9 +32,17 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
 - Apply tuning: use `prometheus/alerts_tuned.yml` and reload Prometheus (`/-/reload`) or restart.
 
 ## Screenshots
-- Before tuning (CPU): ![CPU before tuning](screenshots/Before tuning/CPU pics before tuning.png)
-- After tuning (CPU): ![CPU after tuning](screenshots/After tuning/cpu after tuning.png)
-- Logs & CPU overlay: ![Logs and CPU usage](screenshots/Data-driven logs & CPU usage.png)
+- Before tuning (CPU): 
+
+![CPU before tuning](screenshots/BeforeTuning/CPU_pics_before_tuning.png)
+
+- After tuning (CPU): 
+
+![CPU after tuning](screenshots/AfterTuning/cpu_after_tuning.png)
+
+- Logs & CPU overlay: 
+
+![Logs and CPU usage](screenshots/Data-driven_logs_CPU_usage.png)
 
 ## Setup & Run
 
