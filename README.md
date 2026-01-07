@@ -204,3 +204,5 @@ Restart Alertmanager after changes.
 - Alertmanager UI: http://localhost:9093
 - Metrics endpoint: http://localhost:3000/metrics
 - Baseline/tuned rules: [alerts.yml](prometheus-log-audit/prometheus/alerts.yml), [alerts_tuned.yml](prometheus-log-audit/prometheus/alerts_tuned.yml)
+ - Grafana provisioning: datasources (Prometheus, Loki) and a base dashboard are auto-loaded from `grafana/provisioning`. On startup, Grafana will create the data sources and import the dashboard “Prometheus + Loki Overview”.
+ - Grafana persistence: dashboards are stored in /var/lib/grafana. A named volume (grafana_data) is mounted in docker-compose to persist dashboards across restarts. Avoid `docker compose down` without volumes or your dashboards will be removed.
