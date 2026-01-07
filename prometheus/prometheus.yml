@@ -17,6 +17,11 @@ scrape_configs:
     static_configs:
       - targets: ['localhost:9090']
 
+  # Alertmanager metrics (for notifications/alerts counts)
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+
   # Node Exporter (system metrics)
   - job_name: 'node'
     static_configs:

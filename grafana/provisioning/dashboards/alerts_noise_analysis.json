@@ -1,0 +1,74 @@
+{
+  "title": "Alerts Noise Analysis (6h)",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "type": "table",
+      "title": "Top 10 alerts by notifications (Alertmanager)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, sum by(alertname)(increase(alertmanager_alerts_received_total[6h])))"
+        }
+      ],
+      "options": { "showHeader": true },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 0 }
+    },
+    {
+      "type": "bargauge",
+      "title": "Top 10 alerts by firing duration (hours)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "refId": "B",
+          "expr": "topk(10, (sum by(alertname)(sum_over_time(ALERTS{alertstate=\"firing\"}[6h])) * 15) / 3600)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "h" }, "overrides": [] },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 8 }
+    },
+    {
+      "type": "timeseries",
+      "title": "Alerts firing over time (sum by alertname)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "refId": "C",
+          "expr": "sum by(alertname)(ALERTS{alertstate=\"firing\"})"
+        }
+      ],
+      "fieldConfig": { "defaults": { "custom": { "lineWidth": 2 } }, "overrides": [] },
+      "options": { "legend": { "displayMode": "table" } },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 16 }
+    },
+    {
+      "type": "stat",
+      "title": "Total notifications sent (6h)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "refId": "D",
+          "expr": "sum(increase(alertmanager_notifications_total[6h]))"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "none" }, "overrides": [] },
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 25 }
+    },
+    {
+      "type": "stat",
+      "title": "Distinct alerts firing (6h)",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "refId": "E",
+          "expr": "count(sum_over_time(ALERTS{alertstate=\"firing\"}[6h]))"
+        }
+      ],
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 25 }
+    }
+  ]
+}

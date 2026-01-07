@@ -5,6 +5,7 @@ services:
   webapp:
     image: node:18-alpine
     container_name: webapp
+    restart: unless-stopped
     working_dir: /app
     volumes:
       - ./app:/app
@@ -23,6 +24,7 @@ services:
   postgres:
     image: postgres:15-alpine
     container_name: postgres
+    restart: unless-stopped
     environment:
       POSTGRES_USER: appuser
       POSTGRES_PASSWORD: apppass
@@ -36,6 +38,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
 
@@ -43,6 +46,7 @@ services:
   node-exporter:
     image: prom/node-exporter:latest
     container_name: node-exporter
+    restart: unless-stopped
     ports:
       - "9100:9100"
     command:
@@ -58,6 +62,7 @@ services:
   postgres-exporter:
     image: prometheuscommunity/postgres-exporter:latest
     container_name: postgres-exporter
+    restart: unless-stopped
     ports:
       - "9187:9187"
     environment:
@@ -69,6 +74,7 @@ services:
   redis-exporter:
     image: oliver006/redis_exporter:latest
     container_name: redis-exporter
+    restart: unless-stopped
     ports:
       - "9121:9121"
     environment:
@@ -80,6 +86,7 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
+    restart: unless-stopped
     ports:
       - "9090:9090"
     volumes:
@@ -88,6 +95,7 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=90d'
       - '--web.console.libraries=/etc/prometheus/console_libraries'
       - '--web.console.templates=/etc/prometheus/consoles'
       - '--web.enable-lifecycle'
@@ -100,6 +108,7 @@ services:
   alertmanager:
     image: prom/alertmanager:latest
     container_name: alertmanager
+    restart: unless-stopped
     ports:
       - "9093:9093"
     volumes:
@@ -112,6 +121,7 @@ services:
   loki:
     image: grafana/loki:2.9.8
     container_name: loki
+    restart: unless-stopped
     ports:
       - "3100:3100"
     command: -config.file=/etc/loki/local-config.yaml
@@ -122,6 +132,7 @@ services:
   promtail:
     image: grafana/promtail:2.9.8
     container_name: promtail
+    restart: unless-stopped
     volumes:
       - ./logs:/logs
       - ./loki/promtail-config.yml:/etc/promtail/config.yml
@@ -133,6 +144,7 @@ services:
   grafana:
     image: grafana/grafana:11.0.0
     container_name: grafana
+    restart: unless-stopped
     ports:
       - "3001:3000"
     volumes:

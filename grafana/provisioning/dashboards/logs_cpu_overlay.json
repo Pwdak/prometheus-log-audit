@@ -12,26 +12,26 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\\\"idle\\\"}[5m])) * 100)"
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"
         },
         {
           "refId": "B",
           "datasource": "Loki",
-          "expr": "sum(count_over_time({service=\\\"webapp\\\"}[5m])) / 300 * 60"
+          "expr": "sum(rate({job=\"webapp\"}[5m])) * 60"
         }
       ],
       "fieldConfig": {
         "defaults": { "custom": { "lineWidth": 2 } },
         "overrides": [
           {
-            "matcher": { "id": "byRefId", "options": "A" },
+            "matcher": { "id": "byFrameRefID", "options": "A" },
             "properties": [
               { "id": "unit", "value": "percent" },
               { "id": "custom.axisPlacement", "value": "left" }
             ]
           },
           {
-            "matcher": { "id": "byRefId", "options": "B" },
+            "matcher": { "id": "byFrameRefID", "options": "B" },
             "properties": [
               { "id": "unit", "value": "logs/min" },
               { "id": "custom.axisPlacement", "value": "right" }

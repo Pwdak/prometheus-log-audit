@@ -12,7 +12,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({service=\"webapp\"}[5m])) / 300 * 60"
+          "expr": "sum(rate({job=\"webapp\"}[5m])) * 60"
         }
       ],
       "fieldConfig": { "defaults": { "unit": "logs/min" }, "overrides": [] },
