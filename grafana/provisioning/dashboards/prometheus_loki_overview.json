@@ -8,11 +8,11 @@
     {
       "type": "timeseries",
       "title": "Logs Volume (webapp)",
-      "datasource": { "type": "loki", "uid": "Loki" },
+      "datasource": "Loki",
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(count_over_time({service=\"webapp\"}[5m]))"
+          "expr": "sum(count_over_time({service=\"webapp\"}[5m])) / 300 * 60"
         }
       ],
       "fieldConfig": { "defaults": { "unit": "logs/min" }, "overrides": [] },
@@ -22,11 +22,11 @@
     {
       "type": "timeseries",
       "title": "CPU Usage %",
-      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "datasource": "Prometheus",
       "targets": [
         {
           "refId": "B",
-          "expr": "100 - (avg by(instance)(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"
         }
       ],
       "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
