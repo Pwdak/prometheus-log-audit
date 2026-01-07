@@ -6,25 +6,6 @@
 
 ---
 
-## How to Reproduce (6h)
-- Start the stack: `docker compose up -d`
-- Generate load: `bash scripts/generate_load.sh`
-- Generate spikes (optional): `bash scripts/generate_spikes.sh`
-- Open Grafana: http://localhost:3001 and check dashboards:
-  - Prometheus + Loki Overview
-  - Logs vs CPU Overlay
-  - Alerts Noise Analysis (6h)
-- Export alert analysis: `WINDOW=6h bash scripts/export_alerts.sh`
-- Review generated files: `alert_analysis_YYYYMMDD.json`, `alert_noise_top10_YYYYMMDD.csv`
-- Apply tuning: use `prometheus/alerts_tuned.yml` and reload Prometheus (`/-/reload`) or restart.
-
-## Screenshots
-- Before tuning (CPU): ![CPU before tuning](screenshots/Before tuning/CPU pics before tuning.png)
-- After tuning (CPU): ![CPU after tuning](screenshots/After tuning/cpu after tuning.png)
-- Logs & CPU overlay: ![Logs and CPU usage](screenshots/Data-driven logs & CPU usage.png)
-
----
-
 ## 1. Executive Summary
 This report details the analysis of Prometheus alert logs over the last quarter. The objective was to identify high-volume, low-value alerts ("noise") that contribute to alert fatigue without requiring actionable intervention. 
 
