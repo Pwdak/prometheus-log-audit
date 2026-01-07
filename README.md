@@ -45,6 +45,11 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     - **Prometheus:** [http://localhost:9090](http://localhost:9090)
     - **Alertmanager:** [http://localhost:9093](http://localhost:9093)
     - **App Metrics:** [http://localhost:3000/metrics](http://localhost:3000/metrics)
+    - **Grafana:** [http://localhost:3001](http://localhost:3001) → Folder “Observability Lab”
+      - Dashboards:
+        - Prometheus + Loki Overview
+        - Logs vs CPU Overlay
+        - Alerts Noise Analysis (6h)
 
 ## Workflow
 
@@ -81,7 +86,7 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     curl -s "http://<prometheus-host>:9090/api/v1/alerts"
     ```
 
-4.  **Data-driven Historical Audit (90d)**
+4.  **Data-driven Audit (Configurable window)**
     Use PromQL with the HTTP API to compute Top 10 over historical logs:
     ```bash
     curl -s "http://<prometheus-host>:9090/api/v1/query?query=topk(10,%20sum%20by%20(alertname)%20(count_over_time(ALERTS%7Balertstate%3D%22firing%22%7D[90d])))" > audit_top10_90d.json
@@ -95,17 +100,21 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     curl -s "http://<prometheus-host>:9090/api/v1/query?query=topk(10,%20sum%20by%20(alertname,%20team)%20(count_over_time(ALERTS%7Balertstate%3D%22firing%22%7D[90d])))" > audit_top10_team_90d.json
     ```
     These outputs provide a data-driven ranking of noisy alerts to target for tuning.
-    Script helper:
+    Script helpers:
     ```bash
     chmod +x scripts/audit_historical.sh
     ./scripts/audit_historical.sh <prometheus-host:9090> 30d
     ```
     Extrapolation tip when simulating short windows: measure over N hours and scale by (30*24)/N to approximate monthly volumes.
-    CSV export and monthly estimate:
+    CSV export (Top 10) from current window and monthly estimate:
     ```bash
     ./scripts/audit_historical.sh <prometheus-host:9090> 6h 30
     ```
     This produces JSON and CSV files with a monthly_estimate based on the window length.
+    To export and append a Markdown summary to AUDIT_REPORT.md from the current window:
+    ```bash
+    WINDOW=6h ./scripts/export_alerts.sh
+    ```
 
 5.  **Tune Alerts:**
     Use `prometheus/alerts_tuned.yml` as a reference for professional tuning:
@@ -120,7 +129,7 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     docker compose restart prometheus
     ```
 
-4.  **Stop Environment:**
+6.  **Stop Environment:**
     ```bash
     docker compose down
     ```
@@ -132,6 +141,7 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
 - Alert rules tuned using `prometheus/alerts_tuned.yml`.
 - Increased load/spikes applied: `./scripts/generate_spikes.sh`.
 - Post-tuning alert snapshot exported: `./scripts/export_alerts.sh`.
+- Report summary appended automatically: `AUDIT_REPORT.md` → “Alert Noise Summary (6h)”.
 
 To compare snapshots (optional with jq):
 ```bash
@@ -204,5 +214,6 @@ Restart Alertmanager after changes.
 - Alertmanager UI: http://localhost:9093
 - Metrics endpoint: http://localhost:3000/metrics
 - Baseline/tuned rules: [alerts.yml](prometheus-log-audit/prometheus/alerts.yml), [alerts_tuned.yml](prometheus-log-audit/prometheus/alerts_tuned.yml)
- - Grafana provisioning: datasources (Prometheus, Loki) and a base dashboard are auto-loaded from `grafana/provisioning`. On startup, Grafana will create the data sources and import the dashboard “Prometheus + Loki Overview”.
- - Grafana persistence: dashboards are stored in /var/lib/grafana. A named volume (grafana_data) is mounted in docker-compose to persist dashboards across restarts. Avoid `docker compose down` without volumes or your dashboards will be removed.
+- Grafana provisioning: datasources (Prometheus, Loki) and a base dashboard are auto-loaded from `grafana/provisioning`. On startup, Grafana will create the data sources and import the dashboard “Prometheus + Loki Overview”.
+- Grafana persistence: dashboards are stored in /var/lib/grafana. A named volume (grafana_data) is mounted in docker-compose to persist dashboards across restarts. Avoid `docker compose down` without volumes or your dashboards will be removed.
+ - Docker restart policy: all services use `restart: unless-stopped` to improve resilience.

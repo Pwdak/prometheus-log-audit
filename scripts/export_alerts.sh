@@ -5,8 +5,8 @@ OUT_CSV="alert_noise_top10_$DATE.csv"
 echo "Exporting alert noise analysis to $OUT_JSON and $OUT_CSV..."
 
 # Prometheus endpoint
-PROM_URL=${PROM_URL:-http://localhost:9090}
-WINDOW=${WINDOW:-6h}
+PROM_URL=http://172.16.0.120:9090
+WINDOW=6h
 
 # Top 10 alerts by notifications (Alertmanager metrics)
 NOTIF_QUERY="topk(10, sum by(alertname)(increase(alertmanager_alerts_received_total[$WINDOW])))"
