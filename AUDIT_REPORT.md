@@ -59,8 +59,8 @@ The following 10 alerts were identified as the primary sources of noise. None of
 We have applied the following configuration changes to `alerts.yml` to eliminate this noise.
 
 ### 4.1 System Alerts Tuning
-- **`HighMemoryUsage`**: Increased threshold from **60%** to **85%**. Added duration `for: 15m` (was `2m`) to ignore transient spikes.
-- **`HighCPUUsage`**: Increased threshold to **85%** for **15m**.
+- **`HighMemoryUsage`**: Increased threshold from **60%** to **85%**. Added duration `for: 5m` (was `3m`) to ignore transient spikes.
+- **`HighCPUUsage`**: Increased threshold to **85%** for **5m**.
 - **`DiskSpaceWarning`**: Changed logic to alert only if **< 10%** free AND **< 10GB** remaining (preventing alerts on large empty drives).
 
 ### 4.2 Application Alerts Tuning
