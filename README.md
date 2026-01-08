@@ -13,10 +13,36 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
 - **curl** (usually pre-installed).
 
 ## Architecture
-- Editable diagram: [docs/architecture.drawio](file:///c:/Users/LENOVO/Downloads/prometheus-log-audit/docs/architecture.drawio)
 - Image preview:
 
 ![Architecture Diagram](docs/architecture.png)
+
+---
+
+## How to Reproduce (6h)
+- Start the stack: `docker compose up -d`
+- Generate load: `bash scripts/generate_load.sh`
+- Generate spikes (optional): `bash scripts/generate_spikes.sh`
+- Open Grafana: http://localhost:3001 and check dashboards:
+  - Prometheus + Loki Overview
+  - Logs vs CPU Overlay
+  - Alerts Noise Analysis (6h)
+- Export alert analysis: `WINDOW=6h bash scripts/export_alerts.sh`
+- Review generated files: `alert_analysis_YYYYMMDD.json`, `alert_noise_top10_YYYYMMDD.csv`
+- Apply tuning: use `prometheus/alerts_tuned.yml` and reload Prometheus (`/-/reload`) or restart.
+
+## Screenshots
+- Before tuning (CPU): 
+
+![CPU before tuning](screenshots/BeforeTuning/CPU_pics_before_tuning.png)
+
+- After tuning (CPU): 
+
+![CPU after tuning](screenshots/AfterTuning/cpu_after_tuning.png)
+
+- Logs & CPU overlay: 
+
+![Logs and CPU usage](screenshots/Data-driven_logs_CPU_usage.png)
 
 ## Setup & Run
 
@@ -45,10 +71,22 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     - **Prometheus:** [http://localhost:9090](http://localhost:9090)
     - **Alertmanager:** [http://localhost:9093](http://localhost:9093)
     - **App Metrics:** [http://localhost:3000/metrics](http://localhost:3000/metrics)
+    - **Grafana:** [http://localhost:3001](http://localhost:3001) → Folder “Observability Lab”
+      - Dashboards:
+        - Prometheus + Loki Overview
+        - Logs vs CPU Overlay
+        - Alerts Noise Analysis (6h)
 
 ## Workflow
 
-1.  **Analyze Noise (Baseline):**
+1.  **Logs → Analysis → Findings → Tuning → Report**
+    - Logs: collect and query alert history from Prometheus TSDB
+    - Analysis: run PromQL to quantify firing frequency and durations
+    - Findings: identify Top 10 noisy alerts (no action required)
+    - Tuning: adjust thresholds, durations, exclusions, and routing
+    - Report: document changes, impact, and next steps
+
+2.  **Analyze Noise (Baseline):**
     Go to Prometheus -> Graph and run:
     ```promql
     count by (alertname) (ALERTS{alertstate="firing"})
@@ -63,7 +101,7 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     ```
     This surfaces high-volume, low-value alerts (e.g., `HighResponseTime` including known slow routes, `RedisMemoryHigh` on LRU caches).
 
-2.  **Export Data:**
+3.  **Export Data:**
     Run the export script to save current alert snapshot:
     ```bash
     ./scripts/export_alerts.sh
@@ -74,10 +112,40 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     curl -s "http://<prometheus-host>:9090/api/v1/alerts"
     ```
 
-3.  **Tune Alerts:**
+4.  **Data-driven Audit (Configurable window)**
+    Use PromQL with the HTTP API to compute Top 10 over historical logs:
+    ```bash
+    curl -s "http://<prometheus-host>:9090/api/v1/query?query=topk(10,%20sum%20by%20(alertname)%20(count_over_time(ALERTS%7Balertstate%3D%22firing%22%7D[90d])))" > audit_top10_90d.json
+    ```
+    If retention < 90d, adapt the window (e.g., 30d):
+    ```bash
+    curl -s "http://<prometheus-host>:9090/api/v1/query?query=topk(10,%20sum%20by%20(alertname)%20(count_over_time(ALERTS%7Balertstate%3D%22firing%22%7D[30d])))" > audit_top10_30d.json
+    ```
+    Optional: group by team
+    ```bash
+    curl -s "http://<prometheus-host>:9090/api/v1/query?query=topk(10,%20sum%20by%20(alertname,%20team)%20(count_over_time(ALERTS%7Balertstate%3D%22firing%22%7D[90d])))" > audit_top10_team_90d.json
+    ```
+    These outputs provide a data-driven ranking of noisy alerts to target for tuning.
+    Script helpers:
+    ```bash
+    chmod +x scripts/audit_historical.sh
+    ./scripts/audit_historical.sh <prometheus-host:9090> 30d
+    ```
+    Extrapolation tip when simulating short windows: measure over N hours and scale by (30*24)/N to approximate monthly volumes.
+    CSV export (Top 10) from current window and monthly estimate:
+    ```bash
+    ./scripts/audit_historical.sh <prometheus-host:9090> 6h 30
+    ```
+    This produces JSON and CSV files with a monthly_estimate based on the window length.
+    To export and append a Markdown summary to AUDIT_REPORT.md from the current window:
+    ```bash
+    WINDOW=6h ./scripts/export_alerts.sh
+    ```
+
+5.  **Tune Alerts:**
     Use `prometheus/alerts_tuned.yml` as a reference for professional tuning:
     - Exclude known slow endpoints from latency SLO (e.g., `/slow`) to avoid expected noise.
-    - Increase thresholds and `for:` durations on CPU/Mem to ignore transient spikes.
+    - Increase thresholds and `for:` durations on CPU/Mem to ignore transient spikes. For CPU, set `> 85` with `for: 5m`.
     - Raise pool-based limits (DB connections) according to realistic capacity.
     - Disable purely informative alerts (e.g., Redis memory fullness under LRU).
     - Keep actionable signals (e.g., `RedisDown`) intact.
@@ -87,7 +155,7 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
     docker compose restart prometheus
     ```
 
-4.  **Stop Environment:**
+6.  **Stop Environment:**
     ```bash
     docker compose down
     ```
@@ -99,6 +167,7 @@ This directory contains a Proof of Concept (PoC) environment to simulate, analyz
 - Alert rules tuned using `prometheus/alerts_tuned.yml`.
 - Increased load/spikes applied: `./scripts/generate_spikes.sh`.
 - Post-tuning alert snapshot exported: `./scripts/export_alerts.sh`.
+- Report summary appended automatically: `AUDIT_REPORT.md` → “Alert Noise Summary (6h)”.
 
 To compare snapshots (optional with jq):
 ```bash
@@ -171,4 +240,6 @@ Restart Alertmanager after changes.
 - Alertmanager UI: http://localhost:9093
 - Metrics endpoint: http://localhost:3000/metrics
 - Baseline/tuned rules: [alerts.yml](prometheus-log-audit/prometheus/alerts.yml), [alerts_tuned.yml](prometheus-log-audit/prometheus/alerts_tuned.yml)
-
+- Grafana provisioning: datasources (Prometheus, Loki) and a base dashboard are auto-loaded from `grafana/provisioning`. On startup, Grafana will create the data sources and import the dashboard “Prometheus + Loki Overview”.
+- Grafana persistence: dashboards are stored in /var/lib/grafana. A named volume (grafana_data) is mounted in docker-compose to persist dashboards across restarts. Avoid `docker compose down` without volumes or your dashboards will be removed.
+ - Docker restart policy: all services use `restart: unless-stopped` to improve resilience.

@@ -1,0 +1,4 @@
+alertname,notifications,duration_hours
+RedisMemoryHigh,0,2.9125
+HighResponseTime,0,2.870833333333333
+HighCPUUsage,0,1.2958333333333334

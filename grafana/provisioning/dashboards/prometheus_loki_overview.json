@@ -1,0 +1,53 @@
+{
+  "title": "Prometheus + Loki Overview",
+  "timezone": "browser",
+  "schemaVersion": 36,
+  "version": 1,
+  "time": { "from": "now-6h", "to": "now" },
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Logs Volume (webapp)",
+      "datasource": "Loki",
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate({job=\"webapp\"}[5m])) * 60"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "logs/min" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list" } },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 }
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU Usage %",
+      "datasource": "Prometheus",
+      "targets": [
+        {
+          "refId": "B",
+          "expr": "100 - (avg(rate(node_cpu_seconds_total{mode=\"idle\"}[5m])) * 100)"
+        }
+      ],
+      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list" } },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 }
+    },
+    {
+      "type": "logs",
+      "title": "Recent WARN/ERROR",
+      "datasource": { "type": "loki", "uid": "Loki" },
+      "targets": [
+        {
+          "refId": "C",
+          "expr": "{service=\"webapp\"} |= \"WARN\""
+        },
+        {
+          "refId": "D",
+          "expr": "{service=\"webapp\"} |= \"ERROR\""
+        }
+      ],
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 9 }
+    }
+  ]
+}
