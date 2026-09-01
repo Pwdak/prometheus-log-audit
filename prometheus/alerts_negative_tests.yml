@@ -1,0 +1,97 @@
+rule_files:
+  - alerts_tuned.yml
+
+evaluation_interval: 30s
+
+tests:
+
+  # HighMemoryUsage should stay quiet below 85%.
+  - interval: 30s
+    input_series:
+      - series: 'node_memory_MemTotal_bytes{instance="node-exporter:9100",job="node"}'
+        values: '10737418240+0x20'
+
+      - series: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100",job="node"}'
+        values: '2147483648+0x20'
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HighMemoryUsage
+        exp_alerts: []
+
+  # HighCPUUsage should stay quiet at ~50% CPU usage.
+  - interval: 30s
+    input_series:
+      - series: 'node_cpu_seconds_total{instance="node-exporter:9100",job="node",cpu="0",mode="idle"}'
+        values: '0+15x20'
+
+      - series: 'node_cpu_seconds_total{instance="node-exporter:9100",job="node",cpu="1",mode="idle"}'
+        values: '0+15x20'
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HighCPUUsage
+        exp_alerts: []
+
+  # HighResponseTime should ignore the known /slow route.
+  - interval: 30s
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{instance="webapp:3000",job="webapp",route="/slow",le="0.1"}'
+        values: '0+5x20'
+
+      - series: 'http_request_duration_seconds_bucket{instance="webapp:3000",job="webapp",route="/slow",le="0.5"}'
+        values: '0+10x20'
+
+      - series: 'http_request_duration_seconds_bucket{instance="webapp:3000",job="webapp",route="/slow",le="1"}'
+        values: '0+100x20'
+
+      - series: 'http_request_duration_seconds_bucket{instance="webapp:3000",job="webapp",route="/slow",le="+Inf"}'
+        values: '0+100x20'
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: HighResponseTime
+        exp_alerts: []
+
+  # RedisEvictionRateHigh should stay quiet below 100 evictions/sec.
+  - interval: 30s
+    input_series:
+      - series: 'redis_evicted_keys_total{instance="redis-exporter:9121",job="redis"}'
+        values: '0+1500x20'
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: RedisEvictionRateHigh
+        exp_alerts: []
+
+  # DiskSpaceWarning requires BOTH:
+  #   free space <10%
+  #   available bytes <10 GiB
+  #
+  # Case 1: less than 10% free but still more than 10 GiB available.
+  - interval: 30s
+    input_series:
+      - series: 'node_filesystem_size_bytes{instance="node-exporter:9100",job="node",mountpoint="/",device="/dev/test",fstype="ext4"}'
+        values: '1073741824000+0x20'
+
+      - series: 'node_filesystem_avail_bytes{instance="node-exporter:9100",job="node",mountpoint="/",device="/dev/test",fstype="ext4"}'
+        values: '53687091200+0x20'
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: DiskSpaceWarning
+        exp_alerts: []
+
+  # Case 2: less than 10 GiB available, but still more than 10% free.
+  - interval: 30s
+    input_series:
+      - series: 'node_filesystem_size_bytes{instance="node-exporter:9100",job="node",mountpoint="/",device="/dev/test",fstype="ext4"}'
+        values: '53687091200+0x20'
+
+      - series: 'node_filesystem_avail_bytes{instance="node-exporter:9100",job="node",mountpoint="/",device="/dev/test",fstype="ext4"}'
+        values: '8589934592+0x20'
+
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: DiskSpaceWarning
+        exp_alerts: []

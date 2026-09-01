@@ -1,0 +1,157 @@
+rule_files:
+  - alerts_tuned.yml
+
+evaluation_interval: 30s
+
+tests:
+
+  # ------------------------------------------------------------
+  # HighMemoryUsage
+  # 90% memory usage sustained for 5 minutes should fire.
+  # ------------------------------------------------------------
+  - interval: 30s
+    input_series:
+      - series: 'node_memory_MemTotal_bytes{instance="node-exporter:9100",job="node"}'
+        values: '10737418240+0x20'
+
+      - series: 'node_memory_MemAvailable_bytes{instance="node-exporter:9100",job="node"}'
+        values: '1073741824+0x20'
+
+    alert_rule_test:
+      - eval_time: 4m30s
+        alertname: HighMemoryUsage
+        exp_alerts: []
+
+      - eval_time: 5m
+        alertname: HighMemoryUsage
+        exp_alerts:
+          - exp_labels:
+              instance: node-exporter:9100
+              job: node
+              severity: warning
+              team: infrastructure
+            exp_annotations:
+              summary: "High memory usage on node-exporter:9100"
+              description: "Memory usage is 90%"
+
+  # ------------------------------------------------------------
+  # HighCPUUsage
+  # Idle CPU at 10% means calculated CPU usage is 90%.
+  # ------------------------------------------------------------
+  - interval: 30s
+    input_series:
+      - series: 'node_cpu_seconds_total{instance="node-exporter:9100",job="node",cpu="0",mode="idle"}'
+        values: '0+3x20'
+
+      - series: 'node_cpu_seconds_total{instance="node-exporter:9100",job="node",cpu="1",mode="idle"}'
+        values: '0+3x20'
+
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HighCPUUsage
+        exp_alerts: []
+
+      - eval_time: 5m30s
+        alertname: HighCPUUsage
+        exp_alerts:
+          - exp_labels:
+              instance: node-exporter:9100
+              severity: warning
+              team: infrastructure
+            exp_annotations:
+              summary: "High CPU usage on node-exporter:9100"
+              description: "CPU usage is 90%"
+
+  # ------------------------------------------------------------
+  # HighResponseTime
+  # Synthetic histogram gives p95 above 0.5 seconds.
+  # ------------------------------------------------------------
+  - interval: 30s
+    input_series:
+      - series: 'http_request_duration_seconds_bucket{instance="webapp:3000",job="webapp",route="/db",le="0.1"}'
+        values: '0+5x20'
+
+      - series: 'http_request_duration_seconds_bucket{instance="webapp:3000",job="webapp",route="/db",le="0.5"}'
+        values: '0+10x20'
+
+      - series: 'http_request_duration_seconds_bucket{instance="webapp:3000",job="webapp",route="/db",le="1"}'
+        values: '0+100x20'
+
+      - series: 'http_request_duration_seconds_bucket{instance="webapp:3000",job="webapp",route="/db",le="+Inf"}'
+        values: '0+100x20'
+
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: HighResponseTime
+        exp_alerts: []
+
+      - eval_time: 5m30s
+        alertname: HighResponseTime
+        exp_alerts:
+          - exp_labels:
+              instance: webapp:3000
+              job: webapp
+              route: /db
+              severity: warning
+              team: backend
+            exp_annotations:
+              summary: "High response time detected"
+              description: "95th percentile response time is 0.9722222222222221s"
+
+  # ------------------------------------------------------------
+  # RedisEvictionRateHigh
+  # Counter increases by 4000 every 30s ~=133 evictions/sec.
+  # ------------------------------------------------------------
+  - interval: 30s
+    input_series:
+      - series: 'redis_evicted_keys_total{instance="redis-exporter:9121",job="redis"}'
+        values: '0+4000x20'
+
+    alert_rule_test:
+      - eval_time: 5m30s
+        alertname: RedisEvictionRateHigh
+        exp_alerts: []
+
+      - eval_time: 9m
+        alertname: RedisEvictionRateHigh
+        exp_alerts:
+          - exp_labels:
+              instance: redis-exporter:9121
+              job: redis
+              severity: warning
+              team: cache
+            exp_annotations:
+              summary: "Redis eviction rate high on redis-exporter:9121"
+              description: "Evicting 133.33333333333334 keys/sec — may indicate real capacity pressure"
+
+  # ------------------------------------------------------------
+  # DiskSpaceWarning
+  # 100 GiB filesystem with 5 GiB available.
+  # ------------------------------------------------------------
+  - interval: 30s
+    input_series:
+      - series: 'node_filesystem_size_bytes{instance="node-exporter:9100",job="node",mountpoint="/",device="/dev/test",fstype="ext4"}'
+        values: '107374182400+0x20'
+
+      - series: 'node_filesystem_avail_bytes{instance="node-exporter:9100",job="node",mountpoint="/",device="/dev/test",fstype="ext4"}'
+        values: '5368709120+0x20'
+
+    alert_rule_test:
+      - eval_time: 4m30s
+        alertname: DiskSpaceWarning
+        exp_alerts: []
+
+      - eval_time: 5m
+        alertname: DiskSpaceWarning
+        exp_alerts:
+          - exp_labels:
+              instance: node-exporter:9100
+              job: node
+              mountpoint: /
+              device: /dev/test
+              fstype: ext4
+              severity: warning
+              team: infrastructure
+            exp_annotations:
+              summary: "Low disk space on node-exporter:9100"
+              description: "Only 5% disk space remaining"

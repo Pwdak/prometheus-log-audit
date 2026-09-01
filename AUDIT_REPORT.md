@@ -1,99 +1,139 @@
-# Prometheus Log Audit & Alert Tuning Report
+# Prometheus Alert Tuning Audit — DEV-289
 
-**Date:** January 02, 2026
-**Author:** DevOps Team
-**Scope:** 3-Month Historical Log Analysis & Alert Tuning
+## Objective
+Analyze Prometheus alert behavior over an extended local audit window to identify
+alerts that fire frequently but require no action ("noise"), tune them to reduce
+alert fatigue, and validate that genuinely actionable alerts still function
+correctly after tuning.
 
----
+## Methodology
+- Reproduced the reference PoC environment locally (Docker Compose: Prometheus,
+  Alertmanager, Grafana, Loki, sample webapp, Postgres, Redis).
+- Ran `generate_load.sh` and `generate_spikes.sh` continuously for approximately
+  24 hours to build a realistic, sustained dataset rather than a short synthetic
+  burst.
+- Queried Prometheus directly via PromQL (`count_over_time(ALERTS{...}[24h])`)
+  to get accurate, per-alert firing and pending counts, since the reference
+  repo's own `export_alerts.sh` script was found to have a bug (see Findings).
 
-## 1. Executive Summary
-This report details the analysis of Prometheus alert logs over the last quarter. The objective was to identify high-volume, low-value alerts ("noise") that contribute to alert fatigue without requiring actionable intervention. 
+## Key Findings
 
-**Key Findings:**
-- **Total Alert Volume:** ~15,400 alerts/month (Simulated extrapolation)
-- **Noise Ratio:** 92% of alerts required no action.
-- **Top Offender:** `HighMemoryUsage` (System) accounted for 35% of all alerts.
+### 1. Consistently firing (confirmed noise)
+| Alert | Firing count (24h) | Root cause |
+|---|---|---|
+| `HighResponseTime` | 2028 | Test-only `/slow` endpoint included in global p95 latency calculation, permanently skewing the metric |
+| `RedisMemoryHigh` | 2021 | Redis instance is configured as an LRU cache — being "full" is expected by design, not a fault |
 
-**Outcome:**
-We identified the Top 10 noisy alerts and applied tuning configurations. These changes are projected to reduce total alert volume by **85%**, allowing the team to focus on genuine incidents.
+### 2. Pending churn (threshold crossed repeatedly, never sustains to firing)
+| Alert | Pending count (24h) | Root cause |
+|---|---|---|
+| `LowCacheHitRate` | 852 | Triggers during normal, brief cache-refresh events |
+| `HighDatabaseConnections` | 586 | Normal connection pool behavior; threshold too low for actual usage |
+| `HighCPUUsage` | 11 | Threshold (`>50%`) too low; spikes cross it briefly without indicating a real problem |
 
----
+This "pending churn" pattern is distinct from steady firing — the alert's `for:`
+duration is currently preventing pages, but the repeated threshold-crossing still
+represents miscalibration worth correcting, and adds noise to the Prometheus/
+Alertmanager UI even without notifying anyone.
 
-## 2. Methodology
-To analyze the "Last 3 Months" of data, we utilized a high-density simulation environment that replicates production patterns and generates accelerated alert history.
+### 3. Critical bug found: RedisDown was non-functional
+The reference repo's own `alerts.yml` marks `RedisDown` as "ACTIONABLE: Real
+issue" — the one alert assumed to reliably detect real outages. Investigation
+during this audit found it was **silently broken**:
 
-### 2.1 Environment Setup
-- **Stack:** Prometheus, Alertmanager, Node.js App, Postgres, Redis.
-- **Data Source:** Prometheus TSDB.
-- **Analysis Tooling:** PromQL, Grafana.
+- Original expression: `up{job="redis"} == 0`
+- This metric reflects whether Prometheus can reach the **redis-exporter**
+  container, not whether Redis itself is running.
+- Verified via failure injection: stopping the `redis` container directly
+  left `up{job="redis"}` at `1` (exporter still reachable) while the
+  exporter's own `redis_up` metric correctly dropped to `0`.
+- Further testing found a second edge case: prolonged Redis unavailability
+  eventually caused the exporter itself to stop responding to scrapes,
+  making `up{job="redis"}` drop to `0` while `redis_up` became entirely
+  absent (not `0` — no data). A simple `redis_up == 0` check alone would
+  have missed this failure mode too.
+- **Fix**: `up{job="redis"} == 0 or redis_up == 0` — catches both "exporter
+  unreachable" and "exporter reachable but Redis itself down."
+- Validated end-to-end: alert fires within the `for: 1m` window when Redis
+  is stopped, and correctly resolves once Redis recovers.
 
-### 2.2 Identification Query
-We used the following PromQL query to rank alerts by firing frequency:
-```promql
-topk(10, count by (alertname) (ALERTS{alertstate="firing"}))
-```
+### 4. Bug found in reference repo's export tooling
+`scripts/export_alerts.sh`'s "notifications by alertname" query
+(`sum by(alertname)(increase(alertmanager_alerts_received_total[...]))`)
+cannot work as written — `alertmanager_alerts_received_total` has no
+`alertname` label (only `instance`, `job`, `status`, `version`), so the
+query silently returns 0 for every alert regardless of actual volume. Firing
+counts in this report were instead derived directly from `ALERTS{alertstate=...}`,
+which does carry the `alertname` label correctly.
 
----
+### 5. Not reproduced during the original 24h baseline window
+`HighMemoryUsage`, `DiskSpaceWarning`, `ApplicationMemoryHigh`,
+`PostgresConnectionErrors`, and `PostgresSlowQueries` did not fire naturally
+during the original 24h load window. `HighMemoryUsage` and `DiskSpaceWarning`
+were subsequently validated through controlled positive incident testing.
+The remaining alerts retain tuning based on the reference repo baseline.
 
-## 3. Analysis Findings: Top 10 Noisy Alerts
+## Tuning Actions Applied
+See `prometheus/alerts_tuned.yml` for full rule definitions. Summary:
 
-The following 10 alerts were identified as the primary sources of noise. None of these alerts resulted in a valid incident ticket in the last quarter.
+| Alert | Change |
+|---|---|
+| `HighResponseTime` | Exclude `/slow` route from p95 calculation; `for` raised 2m→5m |
+| `RedisMemoryHigh` | Replaced with `RedisEvictionRateHigh` to monitor sustained eviction pressure rather than memory occupancy alone |
+| `LowCacheHitRate` | `for` raised 5m→10m to absorb routine refresh blips |
+| `HighDatabaseConnections` | Threshold raised 15→30 connections to reflect real pool sizing |
+| `HighCPUUsage` | Threshold raised 50%→85%, `for` raised 3m→5m |
+| `RedisDown` | **Critical fix** — corrected to `up{job="redis"} == 0 or redis_up == 0` |
+| `HighMemoryUsage` | Threshold set to 85% with `for: 5m`; independently validated with sustained memory pressure |
+| `DiskSpaceWarning` | Alert only when free space is `<10%` AND `<10GiB`; corrected second condition from `node_filesystem_size_bytes` to `node_filesystem_avail_bytes` |
+| `ApplicationMemoryHigh`, `PostgresConnectionErrors`, `PostgresSlowQueries` | Tuned per reference repo baseline; not independently reproduced |
 
-| Rank | Alert Name | Severity | Trigger Condition | Frequency (Monthly) | Root Cause Analysis |
-|------|------------|----------|-------------------|---------------------|---------------------|
-| 1 | `HighMemoryUsage` | Warning | Mem > 60% | ~5,200 | Threshold too low for modern caching behavior. Linux utilizes free RAM for caching; 60% usage is healthy. |
-| 2 | `HighCPUUsage` | Warning | CPU > 50% | ~3,100 | Spikes during nightly batch jobs and normal startup sequences. 50% is not a bottleneck. |
-| 3 | `HighResponseTime` | Warning | p95 > 0.5s | ~2,500 | App includes a `/slow` endpoint for reporting that naturally takes >1s. Global rule catches expected behavior. |
-| 4 | `LowCacheHitRate` | Warning | Hit < 70% | ~1,200 | Cache warms up every morning, dropping hit rate temporarily. No user impact. |
-| 5 | `RedisMemoryHigh` | Warning | Mem > 60% | ~900 | Redis is configured as an LRU cache; it is *designed* to fill up memory. |
-| 6 | `DiskSpaceWarning` | Warning | Free < 40% | ~850 | 40% of a 1TB drive is 400GB. Alert triggers prematurely. |
-| 7 | `ApplicationMemoryHigh` | Warning | Heap > 100MB | ~600 | Node.js garbage collection is lazy. 100MB is well within container limits (512MB). |
-| 8 | `HighDatabaseConnections`| Warning | Conn > 15 | ~500 | Connection pool scales up to 50. 15 is normal load. |
-| 9 | `PostgresSlowQueries` | Warning | Query > 100ms | ~300 | Analytical queries run by BI tools trigger this. They are low priority. |
-| 10 | `PostgresConnectionErrors`| Warning | Rollback > 0.01 | ~250 | Application retries transactions automatically. No persistent failure. |
+## Results & Validation
+- Applied tuned rules via live Prometheus config reload (`/-/reload`), preserving
+  the full 24h data history for before/after comparison.
+- Confirmed via `ALERTS{alertstate="firing"}` query: both `HighResponseTime` and
+  `RedisMemoryHigh` — 4049 combined firing events over 24h — stopped firing
+  entirely under the tuned configuration with unchanged underlying traffic.
+- Confirmed `RedisDown` fires correctly on injected failure (container stopped)
+  and resolves correctly on recovery — verifying the critical fix works as
+  intended and the tuning didn't compromise real incident detection.
 
----
+## Attachments
+- `prometheus/alerts.yml` — original rules
+- `prometheus/alerts_tuned.yml` — tuned rules (validated via `promtool check rules`)
+- Raw data: `alert_analysis_*.json`, `alert_noise_top10_*.csv`
+## Positive Incident Validation
 
-## 4. Tuning Actions
+A second validation phase was performed specifically to confirm that tuned alerts
+still detect real sustained incidents and were not simply silenced.
 
-We have applied the following configuration changes to `alerts.yml` to eliminate this noise.
+| Alert | Incident injected | Evidence | Recovery | Result |
+|---|---|---|---|---|
+| `HighCPUUsage` | Sustained CPU saturation | CPU reached ~99.9%; alert fired above the tuned 85% threshold | Load removed; CPU returned to ~3.6%; alert resolved | **PASS** |
+| `HighMemoryUsage` | Sustained memory pressure | Memory remained above 85% for 5m; alert changed from pending to firing | Load removed; memory returned to ~19.5%; alert resolved | **PASS** |
+| `HighResponseTime` | `/db` delayed to ~800-1000ms | p95 reached ~0.987s; alert changed from pending to firing | Normal latency restored; alert resolved | **PASS** |
+| `RedisEvictionRateHigh` | Controlled Redis eviction pressure | Eviction rate reached ~4723 keys/sec; pending and firing states confirmed | Rate returned to 0; alert resolved; Redis config restored | **PASS** |
+| `DiskSpaceWarning` | Synthetic filesystem metrics using `promtool` | 100GiB filesystem with 5GiB available; inactive at 4m30s and active at 5m | No host disk modification required | **PASS** |
 
-### 4.1 System Alerts Tuning
-- **`HighMemoryUsage`**: Increased threshold from **60%** to **85%**. Added duration `for: 5m` (was `3m`) to ignore transient spikes.
-- **`HighCPUUsage`**: Increased threshold to **85%** for **5m**.
-- **`DiskSpaceWarning`**: Changed logic to alert only if **< 10%** free AND **< 10GB** remaining (preventing alerts on large empty drives).
-
-### 4.2 Application Alerts Tuning
-- **`HighResponseTime`**: Excluded known slow routes.
-    - *Old:* `rate(http_request_duration_seconds_bucket[5m])`
-    - *New:* `rate(http_request_duration_seconds_bucket{route!="/slow"}[5m])`
-- **`LowCacheHitRate`**: Disabled alert. Replaced with a dashboard gauge (Information only).
-- **`ApplicationMemoryHigh`**: Increased threshold to **80% of Container Limit** (dynamic) instead of static 100MB.
-
-### 4.3 Database & Infrastructure Tuning
-- **`RedisMemoryHigh`**: Disabled. Redis maxmemory policy handles eviction automatically. Alert only on `evicted_keys_total` rate if critical.
-- **`HighDatabaseConnections`**: Increased threshold to **45** (90% of pool size).
-- **`PostgresSlowQueries`**: Increased threshold to **500ms**.
-
----
-
-## 5. Verification & Next Steps
-
-### 5.1 Projection
-With these changes applied to the simulation environment:
-- **Alert Volume:** ~200/month (Estimated)
-- **Signal-to-Noise Ratio:** Improved from 1:12 to 1:1.
-
-### 5.2 Implementation Plan
-1. Commit updated `alerts.yml` to git.
-2. Deploy to staging Prometheus.
-3. Verify for 24 hours.
-4. Promote to production.
-
----
-
-**Attachments:**
-- [alerts_v1_noisy.yml](../prometheus/alerts.yml) (Original)
-- [alerts_v2_tuned.yml](../prometheus/alerts_tuned.yml) (Proposed)
+**Positive incident validation result: 5/5 PASS.**
 
 
+### Automated Promtool Regression Validation
+
+All five tuned alerts now have repeatable promtool unit-test coverage.
+
+Positive validation suite:
+promtool test rules alerts_positive_tests.yml
+SUCCESS
+
+Negative/noise regression suite after the DiskSpaceWarning correction:
+promtool test rules alerts_negative_tests.yml
+SUCCESS
+
+For DiskSpaceWarning, the second condition was corrected from:
+node_filesystem_size_bytes{mountpoint="/"} < 10 * 1024*1024*1024
+
+to:
+node_filesystem_avail_bytes{mountpoint="/"} < 10 * 1024*1024*1024
+
+This ensures the rule checks available disk space rather than total filesystem capacity.
