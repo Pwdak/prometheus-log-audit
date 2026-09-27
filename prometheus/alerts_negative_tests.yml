@@ -1,4 +1,4 @@
-rule_files:
+﻿rule_files:
   - alerts_tuned.yml
 
 evaluation_interval: 30s
@@ -94,4 +94,37 @@ tests:
     alert_rule_test:
       - eval_time: 10m
         alertname: DiskSpaceWarning
+        exp_alerts: []
+
+  # ApplicationMemoryHigh should stay quiet below 250MB.
+  - interval: 30s
+    input_series:
+      - series: 'app_memory_usage_bytes{instance="webapp:3000",job="webapp"}'
+        values: '200000000+0x30'
+
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: ApplicationMemoryHigh
+        exp_alerts: []
+
+  # PostgresConnectionErrors should stay quiet below a 0.05/s rollback rate.
+  - interval: 30s
+    input_series:
+      - series: 'pg_stat_database_xact_rollback{instance="postgres-exporter:9187",job="postgres"}'
+        values: '0+1x30'
+
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PostgresConnectionErrors
+        exp_alerts: []
+
+  # PostgresSlowQueries should stay quiet below a 500ms/s growth rate.
+  - interval: 30s
+    input_series:
+      - series: 'pg_stat_statements_mean_exec_time{instance="postgres-exporter:9187",job="postgres"}'
+        values: '0+1000x30'
+
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: PostgresSlowQueries
         exp_alerts: []

@@ -1,4 +1,4 @@
-#!/bin/bash
+﻿#!/bin/bash
 DATE=$(date +"%Y%m%d")
 OUT_JSON="alert_analysis_$DATE.json"
 OUT_CSV="alert_noise_top10_$DATE.csv"
@@ -8,8 +8,20 @@ echo "Exporting alert noise analysis to $OUT_JSON and $OUT_CSV..."
 PROM_URL=http://localhost:9090
 WINDOW=6h
 
-# Top 10 alerts by notifications (Alertmanager metrics)
-NOTIF_QUERY="topk(10, sum by(alertname)(increase(alertmanager_alerts_received_total[$WINDOW])))"
+# Top 10 alerts by firing volume.
+#
+# FIXED (found during DEV-289 audit): the previous query grouped
+# `alertmanager_alerts_received_total` by `alertname`, but that metric only
+# carries `instance`, `job`, `status` and `version` labels -- it has no
+# `alertname` label. `sum by(alertname)` therefore collapsed every series
+# into a single nameless result, which the JSON parsers below silently
+# discarded (no `alertname` key -> `name=""` -> row skipped), so this column
+# always reported 0 regardless of real volume.
+#
+# `ALERTS{alertstate="firing"}` DOES carry `alertname`, so we use
+# `count_over_time` on it instead -- the same approach the audit report
+# used manually to get real per-alert firing counts.
+NOTIF_QUERY="topk(10, sum by(alertname)(count_over_time(ALERTS{alertstate=\"firing\"}[$WINDOW])))"
 NOTIF_JSON=$(curl -s "$PROM_URL/api/v1/query" --data-urlencode "query=$NOTIF_QUERY")
 
 # Top 10 alerts by firing duration (hours), assuming 15s scrape interval

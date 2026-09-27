@@ -1,0 +1,45 @@
+﻿name: Prometheus Alert Rules CI
+
+# Validates the tuned alert rules on every push/PR that touches them, using
+# the same promtool checks and unit-test suites from the DEV-289 audit
+# (AUDIT_REPORT.md), so a future change to alerts_tuned.yml can't silently
+# reintroduce noise or break a real-incident detection path.
+
+on:
+  push:
+    paths:
+      - "prometheus/**"
+      - ".github/workflows/prometheus-alerts-ci.yml"
+  pull_request:
+    paths:
+      - "prometheus/**"
+      - ".github/workflows/prometheus-alerts-ci.yml"
+
+jobs:
+  validate-alerts:
+    runs-on: ubuntu-latest
+    env:
+      PROMETHEUS_VERSION: "2.54.1"
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install promtool
+        run: |
+          curl -sL -o prometheus.tar.gz \
+            "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VERSION}/prometheus-${PROMETHEUS_VERSION}.linux-amd64.tar.gz"
+          tar xzf prometheus.tar.gz
+          sudo mv "prometheus-${PROMETHEUS_VERSION}.linux-amd64/promtool" /usr/local/bin/promtool
+          promtool --version
+
+      - name: Lint alert rules (promtool check rules)
+        working-directory: prometheus
+        run: promtool check rules alerts_tuned.yml
+
+      - name: Run positive incident validation suite
+        working-directory: prometheus
+        run: promtool test rules alerts_positive_tests.yml
+
+      - name: Run noise/negative regression suite
+        working-directory: prometheus
+        run: promtool test rules alerts_negative_tests.yml
